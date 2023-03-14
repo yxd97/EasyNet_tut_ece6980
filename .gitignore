@@ -4,6 +4,7 @@ _x*
 packaged_kernel_*
 tmp_kernel_pack_*
 .ipcache
+.Xil
 
 # object files
 *.xo
