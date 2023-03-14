@@ -13,7 +13,7 @@ tmp_kernel_pack_*
 # binaires
 *.xclbin
 *.xclbin.info
-host
+host/host
 
 # Vitis profile files
 *.csv
