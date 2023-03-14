@@ -3,7 +3,7 @@ This tutorial is prepared for Cornell ECE 6980, Spring 2023.
 
 ## Instructions
 1. Clone this repo:
-`git clone `
+`git clone https://github.com/yxd97/EasyNet_tut_ece6980.git`
 
 2. Setup Vitis Environment:
 `source setupVitis.sh`
