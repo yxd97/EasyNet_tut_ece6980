@@ -1,0 +1,5 @@
+[profile]
+data=all:all:all
+stall=all:all:all
+exec=all:all:all
+memory=all

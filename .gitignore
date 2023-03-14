@@ -1,0 +1,27 @@
+# Vitis build directories
+build_dir* 
+_x.*
+
+# object files
+*.xo
+*.o
+
+# binaires
+*.xclbin
+*.xclbin.info
+host
+
+# Vitis profile files
+*.csv
+system_estimate.xtxt
+*.run_summary
+
+# logs
+*.log
+*.jou
+
+# runtime data
+*.run
+
+# vscode config
+.vscode
