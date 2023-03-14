@@ -33,7 +33,7 @@
 void saveDataToExtMem (
      ap_uint<512>* extMem,
      hls::stream<ap_uint<512>>& s_data_out,
-     uint64_t expectedRxWordCnt,
+     uint64_t expectedRxWordCnt
 ) {
      #pragma HLS dataflow
      for (int i = 0; i < expectedRxWordCnt; ++i) {

@@ -1,6 +1,9 @@
 # Vitis build directories
 build_dir* 
-_x.*
+_x*
+packaged_kernel_*
+tmp_kernel_pack_*
+.ipcache
 
 # object files
 *.xo

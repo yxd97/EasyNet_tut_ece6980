@@ -118,7 +118,7 @@ endif
 # Linker params
 
 # Linker userPostSysLinkTcl param
-CLFLAGS += ---linkhook.custom postSysLink,$(POSTSYSLINKTCL) 
+LDCLFLAGS += --linkhook.custom postSysLink,$(POSTSYSLINKTCL) 
 ifeq ($(HW_DEBUG), yes)
 LDCLFLAGS += --config scripts/hw_ila_config.txt
 endif
