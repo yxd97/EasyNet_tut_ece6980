@@ -21,6 +21,8 @@ Hardware emulation will require in-depth hacking of the compilcation flow hence 
 
 2. The environment setup is based on the `zhang-capra-xcel` server. Additional tweaks might be required if tested on other machines.
 
+3. After each run, you need to reset the FPGA by doing `xbutil reset -d 0000:40:00.1`. Otherwise the device will run into a deadlock.
+
 ## Acknowledgements
 This tutorial is built using the [EasyNet IP fron ETH Zurich](https://github.com/fpgasystems/Vitis_with_100Gbps_TCP-IP). If you use this work, please acknowledge the original authors and cite their paper.
 ```bibtex
