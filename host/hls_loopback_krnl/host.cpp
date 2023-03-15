@@ -81,7 +81,7 @@ int main(int argc, char **argv) {
     std::string binaryFile = argv[1];
 
     // 512 bits per word
-    uint64_t wordCnt = 64;
+    uint64_t wordCnt = 640;
     if (argc >= 3) {
         wordCnt = std::stoul(argv[2]);
     } 
@@ -155,10 +155,10 @@ int main(int argc, char **argv) {
     std::vector<int, aligned_allocator<int>> network_1_ptr1(networkBufSizeBytes / sizeof(int));
     std::vector<int, aligned_allocator<int>> network_2_ptr0(networkBufSizeBytes / sizeof(int));
     std::vector<int, aligned_allocator<int>> network_2_ptr1(networkBufSizeBytes / sizeof(int));
-    CL_CREATE_EXT_PTR(network_1_ptr0_ext, network_1_ptr0.data(), DDR[0]); CHECK_ERR(err)
-    CL_CREATE_EXT_PTR(network_1_ptr1_ext, network_1_ptr1.data(), DDR[0]); CHECK_ERR(err)
-    CL_CREATE_EXT_PTR(network_2_ptr0_ext, network_2_ptr0.data(), DDR[0]); CHECK_ERR(err)
-    CL_CREATE_EXT_PTR(network_2_ptr1_ext, network_2_ptr1.data(), DDR[0]); CHECK_ERR(err)
+    CL_CREATE_EXT_PTR(network_1_ptr0_ext, network_1_ptr0.data(), HBM[15]); CHECK_ERR(err)
+    CL_CREATE_EXT_PTR(network_1_ptr1_ext, network_1_ptr1.data(), HBM[15]); CHECK_ERR(err)
+    CL_CREATE_EXT_PTR(network_2_ptr0_ext, network_2_ptr0.data(), HBM[16]); CHECK_ERR(err)
+    CL_CREATE_EXT_PTR(network_2_ptr1_ext, network_2_ptr1.data(), HBM[16]); CHECK_ERR(err)
     auto buffer_1_r1 = CL_BUFFER(context, networkBufSizeBytes, network_1_ptr0_ext, err); CHECK_ERR(err)
     auto buffer_1_r2 = CL_BUFFER(context, networkBufSizeBytes, network_1_ptr1_ext, err); CHECK_ERR(err)
     auto buffer_2_r1 = CL_BUFFER(context, networkBufSizeBytes, network_2_ptr0_ext, err); CHECK_ERR(err)
@@ -183,40 +183,22 @@ int main(int argc, char **argv) {
     OCL_CHECK(err, err = q.finish());
     printf("Done.\n");
 
-    // Allocate Memory for user kernels
-    std::vector<ap_uint<512>, aligned_allocator<ap_uint<512>>> sendData(wordCnt);
-    std::vector<ap_uint<512>, aligned_allocator<ap_uint<512>>> recvData(wordCnt);
-    CL_CREATE_EXT_PTR(sendData_ext, sendData.data(), DDR[0]); CHECK_ERR(err)
-    CL_CREATE_EXT_PTR(recvData_ext, recvData.data(), DDR[0]); CHECK_ERR(err)
-    auto buffer_sendData = CL_BUFFER_RDONLY(context, wordCnt * 64, sendData_ext, err); CHECK_ERR(err)
-    auto buffer_recvData = CL_BUFFER_WRONLY(context, wordCnt * 64, recvData_ext, err); CHECK_ERR(err)
-    
-    // fill in data
-    for (size_t i = 0; i < wordCnt; i++) {
-        sendData[i] = i;
-        recvData[i] = 0;
-    }
-    OCL_CHECK(err, err = q.enqueueMigrateMemObjects({buffer_sendData}, 0 /* 0 means from host*/));
-    OCL_CHECK(err, err = q.finish());
-    
     //Set user Kernel Arguments
-    uint64_t wordPerPkg = 64;
+    int wordPerPkg = 16;
     uint64_t nPkg = wordCnt / wordPerPkg; 
+    uint64_t nBytes = wordCnt * 64; // 64 = 512 / 8
 
     int connection = 1;
     int basePort = 7216;
-    OCL_CHECK(err, err = user_send_kernel.setArg(0, buffer_sendData));   
-    OCL_CHECK(err, err = user_send_kernel.setArg(1, nPkg));
-    OCL_CHECK(err, err = user_send_kernel.setArg(2, wordPerPkg));
-    OCL_CHECK(err, err = user_send_kernel.setArg(3, connection));
-    OCL_CHECK(err, err = user_send_kernel.setArg(4, basePort));
-    OCL_CHECK(err, err = user_send_kernel.setArg(5, network_1_IP));
+    OCL_CHECK(err, err = user_send_kernel.setArg(0, connection));
+    OCL_CHECK(err, err = user_send_kernel.setArg(1, wordPerPkg));
+    OCL_CHECK(err, err = user_send_kernel.setArg(2, basePort));
+    OCL_CHECK(err, err = user_send_kernel.setArg(3, nPkg));
+    OCL_CHECK(err, err = user_send_kernel.setArg(4, network_1_IP));
 
-    OCL_CHECK(err, err = user_recv_kernel.setArg(0, buffer_recvData));
-    OCL_CHECK(err, err = user_recv_kernel.setArg(1, wordCnt));
-    OCL_CHECK(err, err = user_recv_kernel.setArg(2, wordPerPkg));
-    OCL_CHECK(err, err = user_recv_kernel.setArg(3, connection));
-    OCL_CHECK(err, err = user_recv_kernel.setArg(4, basePort));
+    OCL_CHECK(err, err = user_recv_kernel.setArg(0, connection));
+    OCL_CHECK(err, err = user_recv_kernel.setArg(1, basePort));
+    OCL_CHECK(err, err = user_recv_kernel.setArg(2, nBytes));
 
     //Launch the Kernel
     double durationUs = 0.0;
@@ -227,21 +209,8 @@ int main(int argc, char **argv) {
     OCL_CHECK(err, err = q.finish());
     auto end = std::chrono::high_resolution_clock::now();
     durationUs = (std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count() / 1000.0);
-    printf("Done! %f us for %ld Bytes\n",durationUs, wordCnt * 64);
-
-    // get the results
-    OCL_CHECK(err, err = q.enqueueMigrateMemObjects({buffer_recvData}, CL_MIGRATE_MEM_OBJECT_HOST));
-    OCL_CHECK(err, err = q.finish());
-
-    // check results
-    bool match = true;
-    for (size_t i = 0; i < wordCnt; i++) {
-        if (sendData[i] != recvData[i]) {
-            match = false;
-            printf("Mismatch at %ld, %d != %d\n", i, sendData[i].to_int(), recvData[i].to_int());
-        }
-    }
+    printf("Done! %f us for %ld Bytes; avg speed %lf GBps\n",durationUs, nBytes, (double)nBytes/(double)durationUs);
 
     std::cout << "EXIT recorded" << std::endl;
-    return (match ? EXIT_SUCCESS : EXIT_FAILURE);
+    return EXIT_SUCCESS;
 }
