@@ -99,6 +99,8 @@ CXXFLAGS += $(opencl_CXXFLAGS) -Wall -O0 -g -std=c++11
 CXXFLAGS += -DVITIS_PLATFORM=$(VITIS_PLATFORM)
 LDFLAGS += $(opencl_LDFLAGS)
 
+CXXFLAGS += -I$(HLS_INCLUDE)
+
 HOST_SRCS += $(USER_HOST_DIR)/$(USER_HOST_SRC)
 # Host compiler global settings
 CXXFLAGS += -fmessage-length=0
@@ -118,7 +120,7 @@ endif
 # Linker params
 
 # Linker userPostSysLinkTcl param
-LDCLFLAGS += --linkhook.custom postSysLink,$(POSTSYSLINKTCL) 
+LDCLFLAGS += --linkhook.custom postSysLink,$(POSTSYSLINKTCL)
 ifeq ($(HW_DEBUG), yes)
 LDCLFLAGS += --config scripts/hw_ila_config.txt
 endif
@@ -165,12 +167,10 @@ examine:
 	$(ECHO) ""
 	$(ECHO) ""
 
-.PHONY: all 
-all: check-devices examine $(EXECUTABLE) $(BINARY_CONTAINERS) 
 
 # Building kernel
 .PHONY: build
-build: $(BINARY_CONTAINERS) examine
+build: $(BINARY_CONTAINERS)
 
 network_krnl: $(NETWORK_KRNL)
 $(NETWORK_KRNL): kernel/network_krnl/network_krnl.xml kernel/network_krnl/package_network_krnl.tcl scripts/gen_xo.tcl kernel/network_krnl/src/hdl/*.sv
@@ -197,15 +197,15 @@ check: exe build
 # 	emconfigutil --platform $(DEVICE) --od $(EMCONFIG_DIR)
 
 # Cleaning stuff
-.PHONY: clean  
+.PHONY: clean
 clean:
 	-$(RMDIR) $(EXECUTABLE) $(XCLBIN)/{*sw_emu*,*hw_emu*}
 	-$(RMDIR) profile_* TempConfig system_estimate.xtxt *.rpt *.csv $(USER_HOST_DIR)/.run *.run_summary
 	-$(RMDIR) src/*.ll *v++* .Xil emconfig.json dltmp* xmltmp* *.log *.jou *.wcfg *.wdb
 
-.PHONY: cleanall  
+.PHONY: cleanall
 cleanall: clean
-	-$(RMDIR) build_dir* 
+	-$(RMDIR) build_dir*
 	-$(RMDIR) _x.* *xclbin.run_summary qemu-memory-_* emulation/ _vimage/ pl* start_simulation.sh *.xclbin _x
 	-$(RMDIR) ./tmp_kernel_pack* ./packaged_kernel*
 

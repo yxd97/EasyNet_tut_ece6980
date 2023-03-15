@@ -26,136 +26,89 @@
  */
 #include "ap_axi_sdata.h"
 #include <ap_fixed.h>
-#include "ap_int.h" 
+#include "ap_int.h"
 #include "../../../../common/include/communication.hpp"
 #include "hls_stream.h"
 
-void saveDataToExtMem (
-     ap_uint<512>* extMem,
-     hls::stream<ap_uint<512>>& s_data_out,
-     uint64_t expectedRxWordCnt
-) {
-     #pragma HLS dataflow
-     for (int i = 0; i < expectedRxWordCnt; ++i) {
-          #pragma HLS pipeline II=1
-          ap_uint<512> s_data = s_data_out.read();
-          extMem[i] = s_data;
-     }
-}
 
 extern "C" {
 void hls_recv_krnl(
-     // External Memory
-     ap_uint<512>* extMem,
+               int useConn,
+               int basePort,
+               ap_uint<64> expectedRxByteCnt,
+               // Internal Stream
+               hls::stream<pkt512>& s_axis_udp_rx,
+               hls::stream<pkt512>& m_axis_udp_tx,
+               hls::stream<pkt256>& s_axis_udp_rx_meta,
+               hls::stream<pkt256>& m_axis_udp_tx_meta,
 
-     // Control registers
-     uint64_t expectedRxWordCnt,
-     uint64_t pkgWordCount,
-     int useConn, 
-     int basePort, 
+               hls::stream<pkt16>& m_axis_tcp_listen_port,
+               hls::stream<pkt8>& s_axis_tcp_port_status,
+               hls::stream<pkt64>& m_axis_tcp_open_connection,
+               hls::stream<pkt128>& s_axis_tcp_open_status,
+               hls::stream<pkt16>& m_axis_tcp_close_connection,
+               hls::stream<pkt128>& s_axis_tcp_notification,
+               hls::stream<pkt32>& m_axis_tcp_read_pkg,
+               hls::stream<pkt16>& s_axis_tcp_rx_meta,
+               hls::stream<pkt512>& s_axis_tcp_rx_data,
+               hls::stream<pkt32>& m_axis_tcp_tx_meta,
+               hls::stream<pkt512>& m_axis_tcp_tx_data,
+               hls::stream<pkt64>& s_axis_tcp_tx_status
+                      ) {
 
-     // Internal Streams
-     hls::stream<pkt512>& s_axis_udp_rx, 
-     hls::stream<pkt512>& m_axis_udp_tx, 
-     hls::stream<pkt256>& s_axis_udp_rx_meta, 
-     hls::stream<pkt256>& m_axis_udp_tx_meta, 
-     
-     hls::stream<pkt16>& m_axis_tcp_listen_port, 
-     hls::stream<pkt8>& s_axis_tcp_port_status, 
-     hls::stream<pkt64>& m_axis_tcp_open_connection, 
-     hls::stream<pkt128>& s_axis_tcp_open_status, 
-     hls::stream<pkt16>& m_axis_tcp_close_connection, 
-     hls::stream<pkt128>& s_axis_tcp_notification, 
-     hls::stream<pkt32>& m_axis_tcp_read_pkg, 
-     hls::stream<pkt16>& s_axis_tcp_rx_meta, 
-     hls::stream<pkt512>& s_axis_tcp_rx_data, 
-     hls::stream<pkt32>& m_axis_tcp_tx_meta, 
-     hls::stream<pkt512>& m_axis_tcp_tx_data, 
-     hls::stream<pkt64>& s_axis_tcp_tx_status
-) {
-     #pragma HLS INTERFACE m_axi port = extMem offset = slave bundle = gmem
-     #pragma HLS INTERFACE s_axilite port = extMem bundle = control
 
-     #pragma HLS INTERFACE s_axilite port = pkgWordCount bundle = control
-     #pragma HLS INTERFACE s_axilite port = expectedRxWordCnt bundle = control
-     #pragma HLS INTERFACE s_axilite port = useConn bundle = control
-     #pragma HLS INTERFACE s_axilite port = basePort bundle = control
+#pragma HLS INTERFACE axis port = s_axis_udp_rx
+#pragma HLS INTERFACE axis port = m_axis_udp_tx
+#pragma HLS INTERFACE axis port = s_axis_udp_rx_meta
+#pragma HLS INTERFACE axis port = m_axis_udp_tx_meta
+#pragma HLS INTERFACE axis port = m_axis_tcp_listen_port
+#pragma HLS INTERFACE axis port = s_axis_tcp_port_status
+#pragma HLS INTERFACE axis port = m_axis_tcp_open_connection
+#pragma HLS INTERFACE axis port = s_axis_tcp_open_status
+#pragma HLS INTERFACE axis port = m_axis_tcp_close_connection
+#pragma HLS INTERFACE axis port = s_axis_tcp_notification
+#pragma HLS INTERFACE axis port = m_axis_tcp_read_pkg
+#pragma HLS INTERFACE axis port = s_axis_tcp_rx_meta
+#pragma HLS INTERFACE axis port = s_axis_tcp_rx_data
+#pragma HLS INTERFACE axis port = m_axis_tcp_tx_meta
+#pragma HLS INTERFACE axis port = m_axis_tcp_tx_data
+#pragma HLS INTERFACE axis port = s_axis_tcp_tx_status
+#pragma HLS INTERFACE s_axilite port=useConn bundle = control
+#pragma HLS INTERFACE s_axilite port=basePort bundle = control
+#pragma HLS INTERFACE s_axilite port=expectedRxByteCnt bundle = control
+#pragma HLS INTERFACE s_axilite port = return bundle = control
 
-     #pragma HLS INTERFACE axis port = s_axis_udp_rx
-     #pragma HLS INTERFACE axis port = m_axis_udp_tx
-     #pragma HLS INTERFACE axis port = s_axis_udp_rx_meta
-     #pragma HLS INTERFACE axis port = m_axis_udp_tx_meta
-     #pragma HLS INTERFACE axis port = m_axis_tcp_listen_port
-     #pragma HLS INTERFACE axis port = s_axis_tcp_port_status
-     #pragma HLS INTERFACE axis port = m_axis_tcp_open_connection
-     #pragma HLS INTERFACE axis port = s_axis_tcp_open_status
-     #pragma HLS INTERFACE axis port = m_axis_tcp_close_connection
-     #pragma HLS INTERFACE axis port = s_axis_tcp_notification
-     #pragma HLS INTERFACE axis port = m_axis_tcp_read_pkg
-     #pragma HLS INTERFACE axis port = s_axis_tcp_rx_meta
-     #pragma HLS INTERFACE axis port = s_axis_tcp_rx_data
-     #pragma HLS INTERFACE axis port = m_axis_tcp_tx_meta
-     #pragma HLS INTERFACE axis port = m_axis_tcp_tx_data
-     #pragma HLS INTERFACE axis port = s_axis_tcp_tx_status
+static hls::stream<ap_uint<512> >    s_data_out;
+#pragma HLS STREAM variable=s_data_out depth=512
 
-     #pragma HLS INTERFACE s_axilite port = return bundle = control
+#pragma HLS dataflow
 
-     static hls::stream<ap_uint<512>>    s_data_out;
-     #pragma HLS STREAM variable=s_data_out depth=512
+          ap_uint<16> sessionTable [32];
+          int pkgWordCount = 16;
 
-     #pragma HLS dataflow
+          listenPorts (basePort, useConn, m_axis_tcp_listen_port,
+               s_axis_tcp_port_status);
 
-     ap_uint<16> sessionTable [32];
-     ap_uint<64> expectedRxByteCnt = expectedRxWordCnt * 64; // 64 = 512/8
-     
-     // listen on TCP port, receive data if any
-     listenPorts(
-          basePort, 
-          useConn, 
-          m_axis_tcp_listen_port, 
-          s_axis_tcp_port_status
-     );
+          recvData(expectedRxByteCnt,
+               s_axis_tcp_notification,
+               m_axis_tcp_read_pkg,
+               s_axis_tcp_rx_meta,
+               s_axis_tcp_rx_data);
 
-     recvData(
-          expectedRxByteCnt, 
-          s_data_out,
-          s_axis_tcp_notification, 
-          m_axis_tcp_read_pkg, 
-          s_axis_tcp_rx_meta, 
-          s_axis_tcp_rx_data
-     );
+          tie_off_tcp_open_connection(m_axis_tcp_open_connection,
+               s_axis_tcp_open_status);
 
-     saveDataToExtMem(
-          extMem, 
-          s_data_out, 
-          expectedRxWordCnt
-     );
 
-     // disable open TCP connection from kernel
-     tie_off_tcp_open_connection(
-          m_axis_tcp_open_connection, 
-          s_axis_tcp_open_status
-     );
+          tie_off_tcp_tx(m_axis_tcp_tx_meta,
+                         m_axis_tcp_tx_data,
+                         s_axis_tcp_tx_status);
 
-     // disable TCP tx from kernel
-     tie_off_tcp_tx(
-          m_axis_tcp_tx_meta, 
-          m_axis_tcp_tx_data, 
-          s_axis_tcp_tx_status
-     );
+          tie_off_udp(s_axis_udp_rx,
+               m_axis_udp_tx,
+               s_axis_udp_rx_meta,
+               m_axis_udp_tx_meta);
 
-     // disable UDP
-     tie_off_udp(
-          s_axis_udp_rx, 
-          m_axis_udp_tx, 
-          s_axis_udp_rx_meta, 
-          m_axis_udp_tx_meta
-     );
+          tie_off_tcp_close_con(m_axis_tcp_close_connection);
 
-     // disable TCP close connection from kernel
-     tie_off_tcp_close_con(
-          m_axis_tcp_close_connection
-     );
-
-} // kernel
-} // extern "C"
+     }
+}

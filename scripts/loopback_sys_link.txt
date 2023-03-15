@@ -43,7 +43,7 @@ sc=network_krnl_1.axis_net_tx:network_krnl_2.axis_net_rx
 sc=network_krnl_2.axis_net_tx:network_krnl_1.axis_net_rx
 
 # network buffers
-sp=network_krnl_1.m00_axi:DDR[0]
-sp=network_krnl_1.m01_axi:DDR[0]
-sp=network_krnl_2.m00_axi:DDR[0]
-sp=network_krnl_2.m01_axi:DDR[0]
+sp=network_krnl_1.m00_axi:HBM[15]
+sp=network_krnl_1.m01_axi:HBM[15]
+sp=network_krnl_2.m00_axi:HBM[16]
+sp=network_krnl_2.m01_axi:HBM[16]
