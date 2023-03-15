@@ -73,15 +73,18 @@ uint32_t ip2int(const char* ip_str) {
 const uint64_t networkBufSizeBytes = 1024 * 1024; // 1MB
 
 int main(int argc, char **argv) {
-    if (argc < 3) {
-        std::cout << "Usage: " << argv[0] << " <XCLBIN File> <Transfer Word Count>" << std::endl;
+    if (argc < 2) {
+        std::cout << "Usage: " << argv[0] << " <XCLBIN File> [<Transfer Word Count>]" << std::endl;
         return EXIT_FAILURE;
     }
 
     std::string binaryFile = argv[1];
 
     // 512 bits per word
-    uint64_t wordCnt = std::stoul(argv[2]);
+    uint64_t wordCnt = 64;
+    if (argc >= 3) {
+        wordCnt = std::stoul(argv[2]);
+    } 
 
     cl_int err;
     cl::CommandQueue q;
@@ -92,8 +95,8 @@ int main(int argc, char **argv) {
     cl::Kernel network_kernel_1;
     cl::Kernel network_kernel_2;
 
-    uint32_t boardNum = 1; //
-    uint32_t hostIP = ip2int("128.253.128.102"); // zhang-capra
+    uint32_t boardNum = 1; 
+    // uint32_t hostIP = ip2int("128.253.128.102"); // zhang-capra
     // uint32_t local_IP = ip2int("128.253.128.40"); // brg-zhang
     uint32_t network_1_IP = ip2int("192.168.0.1");
     uint32_t network_2_IP = ip2int("192.168.0.2");
@@ -183,19 +186,21 @@ int main(int argc, char **argv) {
     // Allocate Memory for user kernels
     std::vector<ap_uint<512>, aligned_allocator<ap_uint<512>>> sendData(wordCnt);
     std::vector<ap_uint<512>, aligned_allocator<ap_uint<512>>> recvData(wordCnt);
-    CL_CREATE_EXT_PTR(sendData_ext, sendData.data(), HBM[15]); CHECK_ERR(err)
-    CL_CREATE_EXT_PTR(recvData_ext, recvData.data(), HBM[16]); CHECK_ERR(err)
+    CL_CREATE_EXT_PTR(sendData_ext, sendData.data(), DDR[0]); CHECK_ERR(err)
+    CL_CREATE_EXT_PTR(recvData_ext, recvData.data(), DDR[0]); CHECK_ERR(err)
     auto buffer_sendData = CL_BUFFER_RDONLY(context, wordCnt * 64, sendData_ext, err); CHECK_ERR(err)
     auto buffer_recvData = CL_BUFFER_WRONLY(context, wordCnt * 64, recvData_ext, err); CHECK_ERR(err)
     
     // fill in data
-    for (int i = 0; i < wordCnt; i++) {
+    for (size_t i = 0; i < wordCnt; i++) {
         sendData[i] = i;
         recvData[i] = 0;
     }
+    OCL_CHECK(err, err = q.enqueueMigrateMemObjects({buffer_sendData}, 0 /* 0 means from host*/));
+    OCL_CHECK(err, err = q.finish());
     
     //Set user Kernel Arguments
-    uint32_t wordPerPkg = 64;
+    uint64_t wordPerPkg = 64;
     uint64_t nPkg = wordCnt / wordPerPkg; 
 
     int connection = 1;
@@ -224,6 +229,19 @@ int main(int argc, char **argv) {
     durationUs = (std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count() / 1000.0);
     printf("Done! %f us for %ld Bytes\n",durationUs, wordCnt * 64);
 
+    // get the results
+    OCL_CHECK(err, err = q.enqueueMigrateMemObjects({buffer_recvData}, CL_MIGRATE_MEM_OBJECT_HOST));
+    OCL_CHECK(err, err = q.finish());
+
+    // check results
+    bool match = true;
+    for (size_t i = 0; i < wordCnt; i++) {
+        if (sendData[i] != recvData[i]) {
+            match = false;
+            printf("Mismatch at %ld, %d != %d\n", i, sendData[i].to_int(), recvData[i].to_int());
+        }
+    }
+
     std::cout << "EXIT recorded" << std::endl;
-    return 0;
+    return (match ? EXIT_SUCCESS : EXIT_FAILURE);
 }
